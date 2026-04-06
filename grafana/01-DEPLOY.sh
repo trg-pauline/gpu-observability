@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e # Exit immediately if any command fails
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NAMESPACE="grafana"
 
 echo "===================================================="
@@ -13,7 +14,7 @@ echo ""
 # Step 1: Deploy Grafana instance
 # ============================================
 echo "▶️  Step 1/4: Deploying Grafana instance..."
-oc apply -f grafana-instance.yaml
+oc apply -f "$SCRIPT_DIR/grafana-instance.yaml"
 
 echo "⏳ Waiting for Grafana pod to be ready..."
 oc wait --for=condition=ready pod -l app=grafana -n $NAMESPACE --timeout=300s
