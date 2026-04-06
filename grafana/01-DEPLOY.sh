@@ -3,10 +3,10 @@ set -e # Exit immediately if any command fails
 
 NAMESPACE="grafana"
 
-echo "=========================================="
+echo "===================================================="
 echo "Grafana GPU Dashboard Deployment"
 echo "Namespace: $NAMESPACE"
-echo "=========================================="
+echo "===================================================="
 echo ""
 
 # ============================================
@@ -297,9 +297,9 @@ echo ""
 # ============================================
 # Deployment complete
 # ============================================
-echo "=========================================="
+echo "===================================================="
 echo "✅ Deployment complete!"
-echo "=========================================="
+echo "===================================================="
 echo ""
 echo "Access Grafana at:"
 ROUTE=$(oc get route grafana-route -n $NAMESPACE -o jsonpath='{.spec.host}')

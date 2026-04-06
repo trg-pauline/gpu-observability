@@ -3,7 +3,11 @@ set -e
 
 NAMESPACE="grafana"
 
-echo "Creating beautiful vLLM AI Metrics dashboard for demos..."
+echo "===================================================="
+echo "Grafana vLLM AI Metrics Dashboard Deployment"
+echo "Namespace: $NAMESPACE"
+echo "===================================================="
+echo ""
 
 # Get Grafana pod name
 POD=$(oc get pod -n $NAMESPACE -l app=grafana -o jsonpath='{.items[0].metadata.name}')
@@ -26,9 +30,9 @@ fi
 
 echo "Found datasource UID: $DATASOURCE_UID"
 
-# Create beautiful AI metrics dashboard
-echo "Creating beautiful AI metrics dashboard..."
-oc exec -n $NAMESPACE $POD -- curl -X POST \
+# Create dashboard
+echo "⏳ Creating dashboard..."
+oc exec -n $NAMESPACE $POD -- curl -s -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "dashboard": {
@@ -302,20 +306,11 @@ oc exec -n $NAMESPACE $POD -- curl -X POST \
     "overwrite": true
   }' \
   http://localhost:3000/api/dashboards/db \
-  -u admin:admin
+  -u admin:admin > /dev/null
 
-echo ""
-echo "✅ Beautiful AI Metrics Dashboard created successfully!"
+echo "✅ Dashboard created successfully!"
 echo ""
 echo "Access your dashboard at:"
 ROUTE=$(oc get route grafana-route -n $NAMESPACE -o jsonpath='{.spec.host}')
 echo "  https://$ROUTE/dashboards"
-echo ""
-echo "Dashboard: vLLM AI Metrics"
-echo ""
-echo "📊 Layout:"
-echo "  Row 1: Token Throughput | Time to First Token (TTFT)"
-echo "  Row 2: Request Rate | Total Tokens | Total Requests"
-echo ""
-echo "Perfect for demos! 🎨"
 echo ""
