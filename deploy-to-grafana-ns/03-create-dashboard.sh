@@ -3,7 +3,7 @@ set -e
 
 NAMESPACE="grafana"
 
-echo "Creating NVIDIA GPU Utilization dashboard in Grafana..."
+echo "Creating GPU Observability dashboard in Grafana..."
 
 # Get Grafana pod name
 POD=$(oc get pod -n $NAMESPACE -l app=grafana -o jsonpath='{.items[0].metadata.name}')
@@ -26,16 +26,59 @@ fi
 
 echo "Found datasource UID: $DATASOURCE_UID"
 
-# Create dashboard
-echo "Creating dashboard..."
+# Dynamically get GPU node hostnames from Prometheus
+echo "Discovering GPU nodes..."
+GPU_NODES=$(oc exec -n openshift-monitoring prometheus-k8s-0 -- \
+  curl -s 'http://localhost:9090/api/v1/query?query=DCGM_FI_DEV_GPU_UTIL' | \
+  grep -o '"Hostname":"[^"]*"' | cut -d'"' -f4 | sort -u)
+
+if [ -z "$GPU_NODES" ]; then
+  echo "Warning: No GPU nodes found in Prometheus. Dashboard will use default colors."
+  COLOR_OVERRIDES=""
+else
+  echo "Found GPU nodes:"
+  echo "$GPU_NODES"
+
+  # Assign colors to each node (orange, blue, pink, then cycle)
+  COLORS=("orange" "blue" "pink" "green" "yellow" "purple")
+  COLOR_OVERRIDES=""
+  INDEX=0
+
+  for NODE in $GPU_NODES; do
+    COLOR="${COLORS[$INDEX]}"
+    SHORT_NODE=$(echo "$NODE" | cut -d'.' -f1)
+
+    if [ -n "$COLOR_OVERRIDES" ]; then
+      COLOR_OVERRIDES="$COLOR_OVERRIDES,"
+    fi
+
+    COLOR_OVERRIDES="$COLOR_OVERRIDES
+              {
+                \"matcher\": {\"id\": \"byRegexp\", \"options\": \"/.*$SHORT_NODE.*/\"},
+                \"properties\": [{\"id\": \"color\", \"value\": {\"mode\": \"fixed\", \"fixedColor\": \"$COLOR\"}}]
+              }"
+
+    INDEX=$((INDEX + 1))
+    if [ $INDEX -ge ${#COLORS[@]} ]; then
+      INDEX=0
+    fi
+  done
+fi
+
+# Create dashboard with dynamic color overrides
+echo "Creating dashboard with dynamic GPU colors..."
 oc exec -n $NAMESPACE $POD -- curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "dashboard": {
-      "title": "NVIDIA GPU Utilization",
-      "tags": ["gpu", "nvidia"],
+      "title": "GPU Observability",
+      "tags": ["GPU"],
       "timezone": "browser",
-      "refresh": "10s",
+      "refresh": "5s",
+      "time": {
+        "from": "now-30m",
+        "to": "now"
+      },
       "panels": [
         {
           "id": 1,
@@ -43,8 +86,8 @@ oc exec -n $NAMESPACE $POD -- curl -X POST \
           "type": "timeseries",
           "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
           "targets": [{
-            "expr": "DCGM_FI_DEV_GPU_UTIL",
-            "legendFormat": "{{Hostname}} - GPU {{gpu}}",
+            "expr": "label_replace(DCGM_FI_DEV_GPU_UTIL, \"short_hostname\", \"$1\", \"Hostname\", \"([^.]+).*\")",
+            "legendFormat": "{{short_hostname}} (GPU {{gpu}})",
             "refId": "A",
             "datasource": {"type": "prometheus", "uid": "'"$DATASOURCE_UID"'"}
           }],
@@ -58,9 +101,12 @@ oc exec -n $NAMESPACE $POD -- curl -X POST \
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "fillOpacity": 10,
-                "showPoints": "never"
+                "showPoints": "never",
+                "lineWidth": 2
               }
-            }
+            },
+            "overrides": ['"$COLOR_OVERRIDES"'
+            ]
           },
           "options": {
             "legend": {"displayMode": "list", "placement": "bottom"}
@@ -72,8 +118,8 @@ oc exec -n $NAMESPACE $POD -- curl -X POST \
           "type": "timeseries",
           "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
           "targets": [{
-            "expr": "DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100",
-            "legendFormat": "{{Hostname}} - GPU {{gpu}}",
+            "expr": "label_replace(DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100, \"short_hostname\", \"$1\", \"Hostname\", \"([^.]+).*\")",
+            "legendFormat": "{{short_hostname}} (GPU {{gpu}})",
             "refId": "A",
             "datasource": {"type": "prometheus", "uid": "'"$DATASOURCE_UID"'"}
           }],
@@ -87,9 +133,12 @@ oc exec -n $NAMESPACE $POD -- curl -X POST \
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "fillOpacity": 10,
-                "showPoints": "never"
+                "showPoints": "never",
+                "lineWidth": 2
               }
-            }
+            },
+            "overrides": ['"$COLOR_OVERRIDES"'
+            ]
           },
           "options": {
             "legend": {"displayMode": "list", "placement": "bottom"}
@@ -101,8 +150,8 @@ oc exec -n $NAMESPACE $POD -- curl -X POST \
           "type": "timeseries",
           "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
           "targets": [{
-            "expr": "DCGM_FI_DEV_GPU_TEMP",
-            "legendFormat": "{{Hostname}} - GPU {{gpu}}",
+            "expr": "label_replace(DCGM_FI_DEV_GPU_TEMP, \"short_hostname\", \"$1\", \"Hostname\", \"([^.]+).*\")",
+            "legendFormat": "{{short_hostname}} (GPU {{gpu}})",
             "refId": "A",
             "datasource": {"type": "prometheus", "uid": "'"$DATASOURCE_UID"'"}
           }],
@@ -115,7 +164,8 @@ oc exec -n $NAMESPACE $POD -- curl -X POST \
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "fillOpacity": 10,
-                "showPoints": "never"
+                "showPoints": "never",
+                "lineWidth": 2
               },
               "thresholds": {
                 "mode": "absolute",
@@ -125,7 +175,9 @@ oc exec -n $NAMESPACE $POD -- curl -X POST \
                   {"value": 85, "color": "red"}
                 ]
               }
-            }
+            },
+            "overrides": ['"$COLOR_OVERRIDES"'
+            ]
           },
           "options": {
             "legend": {"displayMode": "list", "placement": "bottom"}
@@ -137,8 +189,8 @@ oc exec -n $NAMESPACE $POD -- curl -X POST \
           "type": "timeseries",
           "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
           "targets": [{
-            "expr": "DCGM_FI_DEV_POWER_USAGE",
-            "legendFormat": "{{Hostname}} - GPU {{gpu}}",
+            "expr": "label_replace(DCGM_FI_DEV_POWER_USAGE, \"short_hostname\", \"$1\", \"Hostname\", \"([^.]+).*\")",
+            "legendFormat": "{{short_hostname}} (GPU {{gpu}})",
             "refId": "A",
             "datasource": {"type": "prometheus", "uid": "'"$DATASOURCE_UID"'"}
           }],
@@ -151,9 +203,12 @@ oc exec -n $NAMESPACE $POD -- curl -X POST \
                 "drawStyle": "line",
                 "lineInterpolation": "linear",
                 "fillOpacity": 10,
-                "showPoints": "never"
+                "showPoints": "never",
+                "lineWidth": 2
               }
-            }
+            },
+            "overrides": ['"$COLOR_OVERRIDES"'
+            ]
           },
           "options": {
             "legend": {"displayMode": "list", "placement": "bottom"}
