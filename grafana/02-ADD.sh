@@ -20,7 +20,7 @@ DATASOURCE_UID=$(oc exec -n $NAMESPACE $POD -- curl -s http://localhost:3000/api
 
 if [ -z "$DATASOURCE_UID" ]; then
   echo "Error: Datasource 'Prometheus-Direct' not found"
-  echo "Did you run: ./02-create-datasource.sh"
+  echo "Did you run: ./01-DEPLOY.sh"
   exit 1
 fi
 
