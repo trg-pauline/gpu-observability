@@ -18,10 +18,14 @@ spec:
     log:
       mode: "console"
     auth:
-      disable_login_form: "false"
+      disable_login_form: "true"
+    auth.anonymous:
+      enabled: "true"
+      org_role: "Viewer"
     security:
       admin_user: admin
       admin_password: admin
+      allow_embedding: "true"
   route:
     spec:
       to:
