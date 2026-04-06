@@ -1,5 +1,5 @@
 #!/bin/bash
-# Complete deployment script for Grafana GPU Dashboard
+# Deployment script for Grafana with GPU dashboard only
 set -e
 
 NAMESPACE="grafana"
@@ -57,4 +57,7 @@ echo "  Username: admin"
 echo "  Password: admin"
 echo ""
 echo "Dashboard: Dashboards → NVIDIA GPU Utilization"
+echo ""
+echo "To add AI metrics dashboard, run:"
+echo "  ./04-create-ai-dashboard.sh"
 echo ""
