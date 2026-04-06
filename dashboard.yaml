@@ -8,7 +8,7 @@ metadata:
 data:
   gpu-dashboard.json: |
     {
-      "title": "NVIDIA GPU Utilization",
+      "title": "GPU Observability",
       "refresh": "10s",
       "rows": [
         {
