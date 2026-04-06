@@ -1,10 +1,8 @@
-# GPU Observability Dashboard
+# Observability Dashboards
 
-Simple GPU monitoring dashboard for OpenShift AI.
+Monitoring dashboards for OpenShift AI.
 
 ## Prerequisites
-
-Before using this dashboard, you need:
 
 1. **OpenShift** - OpenShift cluster (4.x or higher)
    ```bash
@@ -24,36 +22,34 @@ Before using this dashboard, you need:
    oc get pods -n openshift-monitoring -l app.kubernetes.io/name=prometheus
    ```
 
-## What It Shows
+## Deployment Options
 
-**4 panels in 2x2 layout:**
+### Option 1: OpenShift Console Dashboard
 
-- GPU Utilization (%)
-- GPU Memory (%)
-- GPU Temperature (°C)
-- GPU Power (W)
+Simple ConfigMap dashboard in OpenShift Console.
 
-## How to Apply
-
+**Deploy:**
 ```bash
 oc apply -f dashboard.yaml
 ```
 
-## How to Access
+**Access:**  
+OpenShift Console → **Observe** → **Dashboards** → **GPU Observability**
 
-OpenShift Console → **Observe** → **Dashboards** → **NVIDIA GPU Utilization**
+### Option 2: Grafana Instance
 
-## How It Works
+Standalone Grafana with GPU + AI metrics dashboards.
 
-1. **DCGM Exporter** collects GPU metrics from each node
-2. **Prometheus** stores the metrics
-3. **ConfigMap** with label `console.openshift.io/dashboard: "true"` creates the dashboard
-4. **OpenShift Console** displays it
-
-## Edit the Dashboard
-
+**Deploy:**
 ```bash
-oc edit configmap gpu-utilization-dashboard -n openshift-config-managed
+cd grafana
+./01-DEPLOY.sh  # Deploy Grafana + GPU dashboard
+./02-ADD.sh     # Add vLLM AI metrics dashboard
 ```
 
-Or edit `dashboard.yaml` and reapply.
+**Access:**  
+Script outputs the route URL.
+
+**Dashboards:**
+1. **GPU Observability** - Utilization, memory, temperature, power
+2. **vLLM AI Metrics** - Token throughput, TTFT, request rate
