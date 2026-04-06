@@ -9,28 +9,69 @@ echo "Namespace: $NAMESPACE"
 echo "===================================================="
 echo ""
 
+# ============================================
+# Step 1: Enable user workload monitoring
+# ============================================
+echo "▶️  Step 1/3: Checking user workload monitoring..."
+
+# Check if user workload monitoring is enabled
+if oc get pods -n openshift-user-workload-monitoring 2>/dev/null | grep -q prometheus-user-workload; then
+  echo "✅ User workload monitoring already enabled"
+else
+  echo "⚠️  User workload monitoring not enabled. Enabling now..."
+
+  # Create or update cluster-monitoring-config
+  cat <<'EOF' | oc apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-monitoring-config
+  namespace: openshift-monitoring
+data:
+  config.yaml: |
+    enableUserWorkload: true
+EOF
+
+  echo "⏳ Waiting for user workload monitoring pods to start..."
+  sleep 10
+
+  # Wait for Prometheus pods to be ready
+  oc wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n openshift-user-workload-monitoring --timeout=180s || true
+
+  echo "✅ User workload monitoring enabled"
+fi
+echo ""
+
+# ============================================
+# Step 2: Get Grafana pod
+# ============================================
+echo "▶️  Step 2/3: Locating Grafana pod..."
+
 # Get Grafana pod name
 POD=$(oc get pod -n $NAMESPACE -l app=grafana -o jsonpath='{.items[0].metadata.name}')
 
 if [ -z "$POD" ]; then
-  echo "Error: No Grafana pod found. Is Grafana running?"
+  echo "❌ Error: No Grafana pod found. Is Grafana running?"
   exit 1
 fi
 
-echo "Found Grafana pod: $POD"
+echo "✅ Found Grafana pod: $POD"
+echo ""
+
+# ============================================
+# Step 3: Create vLLM AI Metrics dashboard
+# ============================================
+echo "▶️  Step 3/3: Creating vLLM AI Metrics dashboard..."
 
 # Get datasource UID
 DATASOURCE_UID=$(oc exec -n $NAMESPACE $POD -- curl -s http://localhost:3000/api/datasources/name/Prometheus-Direct -u admin:admin | grep -o '"uid":"[^"]*"' | cut -d'"' -f4)
 
 if [ -z "$DATASOURCE_UID" ]; then
-  echo "Error: Datasource 'Prometheus-Direct' not found"
-  echo "Did you run: ./01-DEPLOY.sh"
+  echo "❌ Error: Datasource not found. Did you run ./01-DEPLOY.sh?"
   exit 1
 fi
 
 echo "Found datasource UID: $DATASOURCE_UID"
-
-# Create dashboard
 echo "⏳ Creating dashboard..."
 oc exec -n $NAMESPACE $POD -- curl -s -X POST \
   -H "Content-Type: application/json" \
@@ -310,7 +351,15 @@ oc exec -n $NAMESPACE $POD -- curl -s -X POST \
 
 echo "✅ Dashboard created successfully!"
 echo ""
-echo "Access your dashboard at:"
+
+# ============================================
+# Deployment complete
+# ============================================
+echo "===================================================="
+echo "✅ Deployment complete!"
+echo "===================================================="
+echo ""
+echo "Access your vLLM AI Metrics dashboard at:"
 ROUTE=$(oc get route grafana-route -n $NAMESPACE -o jsonpath='{.spec.host}')
 echo "  https://$ROUTE/dashboards"
 echo ""
